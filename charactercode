@@ -1,5 +1,5 @@
 extends CharacterBody2D
-
+@onready var animatedsprite = $AnimatedSprite2D
 
 const SPEED = 300.0
 const JUMP_VELOCITY = -400.0
@@ -21,6 +21,12 @@ func _physics_process(delta: float) -> void:
 		velocity.x = direction * SPEED
 	else:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
+	# Update animation state
+	if direction != 0:
+		animatedsprite.play("run")
+		animatedsprite.flip_h = direction < 0
+	else:
+		animatedsprite.play("idle")
 
 	move_and_slide()
 	_handle_rigidbody_push()
@@ -40,4 +46,3 @@ func _handle_rigidbody_push() -> void:
 		if collider is RigidBody2D:
 			var push_direction := -collision.get_normal()
 			collider.apply_central_impulse(push_direction * push_force)
-		
