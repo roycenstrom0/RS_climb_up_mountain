@@ -2,17 +2,40 @@ extends CharacterBody2D
 @onready var animatedsprite = $AnimatedSprite2D
 
 const SPEED = 300.0
+const CLIMB_SPEED = 150.0
 const JUMP_VELOCITY = -400.0
 var push_force: float = 100.0
-
+var is_hanging: bool = false
+@export var hang_position: Vector2
+# handles physics
 func _physics_process(delta: float) -> void:
 	# Add the gravity.
 	if not is_on_floor():
 		velocity += get_gravity() * delta
-
+	# Add gravity if not on floor and not climbing/sliding
+	var is_climbing = false
 	# Handle jump.
-	if Input.is_action_just_pressed("jump"):
+	if is_on_wall() and not is_on_floor():
+		if Input.is_action_pressed("climb"): # Map this in Input Map
+			is_climbing = true
+			var direction = Input.get_axis("ui_up", "ui_down")
+			velocity.y = direction * CLIMB_SPEED
+	else 
+	
+	if Input.is_action_just_pressed("ui_accept") and is_on_wall():
 		velocity.y = JUMP_VELOCITY
+		# Optional: Add a horizontal push-off force here for wall-jumping
+	if is_hanging:
+		velocity = Vector2.ZERO
+		# Lock player position to the ledge grab point
+		global_position = hang_position
+		
+		if Input.is_action_just_pressed("ui_accept"): # Jump to let go
+			let_go()
+	else:
+# Normal movement/gravity code here
+		move_and_slide()
+
 
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.
@@ -22,22 +45,22 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 	# Update animation state
-	if direction != 0:
-		animatedsprite.play("run")
-		animatedsprite.flip_h = direction < 0
-	else:
-		animatedsprite.play("idle")
+	#if direction != 0:
+		#animatedsprite.play("run")
+		#animatedsprite.flip_h = direction < 0
+	#else:
+		#animatedsprite.play("idle")
 
 	move_and_slide()
 	_handle_rigidbody_push()
 
 #If the hitbox of my player enters the group called "Death" the scene resets
-func _on_hitbox_area_entered(area: Area2D) -> void:
-	if area.is_in_group("death"):
+func _on_hitbox_area_entered(_area: Area2D) -> void:
+	if _area.is_in_group("death"):
 		get_tree().reload_current_scene()
-	if area.is_in_group("exit_to_world2"):
+	if _area.is_in_group("exit_to_world2"):
 		get_tree().change_scene_to_file("res://world_2.tscn")
-	if area.is_in_group("exit_to_world1"):
+	if _area.is_in_group("exit_to_world1"):
 		get_tree().change_scene_to_file("res://world_1.tscn")
 func _handle_rigidbody_push() -> void:
 	for i in get_slide_collision_count():
@@ -46,3 +69,11 @@ func _handle_rigidbody_push() -> void:
 		if collider is RigidBody2D:
 			var push_direction := -collision.get_normal()
 			collider.apply_central_impulse(push_direction * push_force)
+func grab_ledge(pos: Vector2) -> void:
+	is_hanging = true
+	hang_position = pos
+
+func let_go() -> void:
+	is_hanging = false
+	velocity.y = -200 # Small hop off the ledge
+
