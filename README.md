@@ -1,128 +1,235 @@
+extends CharacterBody2D
 
-extends CharacterBody2D # Use Godot's built-in 2D character movement and collision handling.
+@export var body_half_width: float = 8.0
+@export var body_half_height: float = 16.0
+@export var speed: float = 300.0
+@export var acceleration: float = 1800.0
+@export var friction: float = 2200.0
+@export var climb_speed: float = 150.0
+@export var jump_velocity: float = -400.0
+@export var wall_jump_push: float = 180.0
+@export var max_ledge_reach: float = 40.0
+@export var ledge_probe_distance: float = 10.0
 
-# Set these to half the width and height of the player's CollisionShape2D.
-@export var body_half_width: float = 8.0 # Half-width used when checking walls and placing the player at a ledge.
-@export var body_half_height: float = 16.0 # Half-height used when checking ledges and placing the player.
-@export var speed: float = 250.0 # Maximum horizontal walking speed, in pixels per second.
-@export var acceleration: float = 1800.0 # How quickly horizontal speed reaches the requested walking speed.
-@export var friction: float = 2200.0 # How quickly the player slows down after releasing left or right.
-@export var climb_speed: float = 120.0 # Vertical speed while climbing a wall.
-@export var jump_velocity: float = -400.0 # Upward jump speed; negative is upward in Godot 2D.
-@export var wall_jump_push: float = 180.0 # Horizontal speed applied when jumping away from a wall or ledge.
-@export var max_ledge_reach: float = 40.0 # Maximum vertical distance above the player to check for a ledge.
-@export var ledge_probe_distance: float = 10.0 # Extra distance beyond the player's side used for ledge checks.
+# Energy settings
+@export var max_energy: float = 100.0
+@export var space_energy_cost: float = 10.0 # Energy lost each time the Spacebar is pressed.
+@export var climb_energy_drain: float = 15.0 # Energy lost per second while climbing with Up/Down.
+@export var hang_energy_drain: float = 15.0 # Energy lost per second while hanging on a ledge.
+@export var energy_recharge_rate: float = 40.0 # Energy restored per second when recovering.
+@export var normal_recharge_delay: float = 0.6 # Delay before recharging after using energy.
+@export var exhausted_recharge_delay: float = 1.5 # Wait time before recharging after hitting 0 energy.
+@export var require_floor_to_recharge: bool = false # Set true if you only want to recharge on the ground.
+@export var energy_bar: ProgressBar
 
-var is_hanging: bool = false # Tracks whether the player is currently attached to a ledge.
-var ledge_position: Vector2 = Vector2.ZERO # Stores the point where the top of the grabbed ledge was detected.
-var hang_position: Vector2 = Vector2.ZERO # Stores the player's fixed position while hanging.
-var hang_direction: int = 1 # Stores whether the ledge is to the player's left (-1) or right (1).
+var is_hanging: bool = false
+var ledge_position: Vector2 = Vector2.ZERO
+var hang_position: Vector2 = Vector2.ZERO
+var hang_direction: int = 1
 
-
-func _physics_process(delta: float) -> void: # Runs the player's movement logic once per physics frame.
-	var move_input: float = Input.get_axis("ui_left", "ui_right") # Reads left/right input as -1, 0, or 1.
-	var vertical_input: float = Input.get_axis("ui_up", "ui_down") # Reads up/down input for climbing.
-	var jump_pressed: bool = Input.is_action_just_pressed("ui_accept") # True only on the frame jump is first pressed.
-
-	if is_hanging: # Use ledge-specific controls instead of normal movement while hanging.
-		_handle_hanging(jump_pressed) # Climb up, jump away, or drop from the ledge.
-		return # Stop normal movement processing for this frame.
-
-	var wall_jumped: bool = is_on_wall() and not is_on_floor() and jump_pressed # Detect a jump pressed while airborne against a wall.
-
-	if is_on_floor() and jump_pressed: # If grounded and jump was pressed...
-		velocity.y = jump_velocity # ...launch the player upward.
-	elif wall_jumped: # Otherwise, jump away if airborne against a wall.
-		velocity.y = jump_velocity # Apply the upward part of the wall jump.
-		velocity.x = get_wall_normal().x * wall_jump_push # Push away from the wall's collision normal.
-	elif is_on_wall() and not is_on_floor() and vertical_input != 0.0: # If against a wall, airborne, and pressing up or down...
-		velocity.y = vertical_input * climb_speed # Move vertically along the wall.
-	elif not is_on_floor(): # If airborne and not actively climbing or jumping...
-		velocity += get_gravity() * delta # Apply gravity, scaled by the physics-frame duration.
-
-	if not wall_jumped: # Don't overwrite the outward push on the exact frame of a wall jump.
-		if move_input != 0.0: # If left or right is held...
-			velocity.x = move_toward(velocity.x, move_input * speed, acceleration * delta) # Accelerate toward the chosen walking speed.
-		else: # If neither left nor right is held...
-			velocity.x = move_toward(velocity.x, 0.0, friction * delta) # Slow horizontal movement toward a stop.
-
-	# Only try to grab ledges while airborne, falling, and moving toward a side.
-	if not is_on_floor() and velocity.y >= 0.0 and move_input != 0.0:
-		if _try_grab_ledge(signi(move_input)): # Check for a ledge in the direction the player is moving.
-			return # The grab function positioned the player, so skip regular movement this frame.
-
-	move_and_slide() # Move the character and resolve collisions using its velocity.
+var current_energy: float = 100.0
+var is_exhausted: bool = false
+var recharge_timer: float = 0.0
 
 
-func _try_grab_ledge(direction: int) -> bool: # Checks for a reachable ledge on the specified side.
-	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state # Get access to physics ray queries for this world.
-	var side_offset := Vector2(direction * (body_half_width + ledge_probe_distance), 0.0) # Set the horizontal distance of the wall-check rays.
-	var wall_origin := global_position + Vector2(0.0, -body_half_height * 0.2) # Start the wall ray around the player's upper torso.
-	var wall_hit: Dictionary = _raycast(space_state, wall_origin, wall_origin + side_offset) # Check whether a wall is beside the player.
+func _ready() -> void:
+	current_energy = max_energy
+	_setup_energy_bar()
+	_update_energy_bar()
 
-	if wall_hit.is_empty(): # If the ray found no wall...
-		return false # ...there is no ledge to grab on this side.
 
-	# Check that the upper part of the player's body has room beside the wall.
-	var clear_origin := global_position + Vector2(0.0, -body_half_height + 2.0) # Start a second ray near the top of the collision shape.
-	var clear_hit: Dictionary = _raycast(space_state, clear_origin, clear_origin + side_offset) # Check whether the space above the wall is clear.
-	if not clear_hit.is_empty(): # If the upper ray also hits a wall...
-		return false # ...the player does not have room to hang here.
+func _physics_process(delta: float) -> void:
+	var move_input: float = Input.get_axis("ui_left", "ui_right")
+	var vertical_input: float = Input.get_axis("ui_up", "ui_down")
+	var jump_pressed: bool = Input.is_action_just_pressed("ui_accept")
+	var can_use_energy: bool = not is_exhausted and current_energy > 0.0
+	var is_using_energy: bool = false
 
-	# Look down just beyond the wall to find the ledge's horizontal top surface.
-	var ledge_x: float = wall_hit["position"].x # Use the wall collision's x-coordinate as the ledge edge.
-	var probe_x: float = global_position.x + direction * (body_half_width + ledge_probe_distance) # Place the downward ray just beyond the player's side.
-	var top_from := Vector2(probe_x, global_position.y - body_half_height - max_ledge_reach) # Start the top-surface ray above the player.
-	var top_to := Vector2(probe_x, global_position.y + body_half_height + ledge_probe_distance) # End the top-surface ray below the player's feet.
-	var top_hit: Dictionary = _raycast(space_state, top_from, top_to) # Find the surface directly below the probe point.
+	# Drain energy whenever the Spacebar (ui_accept) is hit and the player has energy.
+	if jump_pressed and can_use_energy:
+		is_using_energy = true
+		_drain_energy(space_energy_cost)
 
-	if top_hit.is_empty(): # If no surface was found below the probe...
-		return false # ...there is no platform top to grab.
-	if top_hit["normal"].y > -0.5: # If the hit surface is not facing mostly upward...
-		return false # ...do not treat it as a ledge top.
+	if is_hanging:
+		if hang_energy_drain > 0.0:
+			is_using_energy = true
+			_drain_energy(hang_energy_drain * delta)
+		if is_exhausted:
+			is_hanging = false
+			velocity.y = 80.0
+		else:
+			_handle_hanging(jump_pressed)
+			if not is_using_energy:
+				_recharge_energy(delta)
+			_update_energy_bar()
+			return
 
-	var top_y: float = top_hit["position"].y # Save the vertical position of the detected ledge top.
-	if top_y < global_position.y - body_half_height - max_ledge_reach: # If the ledge is too far above the player...
-		return false # ...it is outside the configured reach.
-	if top_y > global_position.y + body_half_height: # If the ledge is below the player's feet...
-		return false # ...it is too low to grab.
+	var touching_wall: bool = _is_next_to_wall()
+	var wall_jumped: bool = can_use_energy and is_on_wall() and not is_on_floor() and jump_pressed
+	var wants_to_climb: bool = vertical_input < 0.0 or (vertical_input > 0.0 and not is_on_floor())
 
-	hang_direction = direction # Remember which way the player is facing the ledge.
-	ledge_position = Vector2(ledge_x, top_y) # Store the detected ledge edge and top height.
-	hang_position = Vector2( # Calculate where the player's center should sit while hanging.
-		ledge_x - direction * (body_half_width + 2.0), # Keep the collision shape just outside the wall.
-		top_y + body_half_height * 0.6 # Place the player below the ledge top.
+	if is_on_floor() and jump_pressed and can_use_energy:
+		velocity.y = jump_velocity
+	elif wall_jumped:
+		velocity.y = jump_velocity
+		velocity.x = get_wall_normal().x * wall_jump_push
+	elif can_use_energy and touching_wall and wants_to_climb:
+		velocity.y = vertical_input * climb_speed
+		is_using_energy = true
+		_drain_energy(climb_energy_drain * delta)
+	elif not is_on_floor():
+		velocity += get_gravity() * delta
+
+	if not wall_jumped:
+		if move_input != 0.0:
+			velocity.x = move_toward(velocity.x, move_input * speed, acceleration * delta)
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, friction * delta)
+
+	if can_use_energy and not is_on_floor() and velocity.y >= 0.0 and move_input != 0.0:
+		if _try_grab_ledge(signi(move_input)):
+			_update_energy_bar()
+			return
+
+	move_and_slide()
+
+	if not is_using_energy:
+		_recharge_energy(delta)
+
+	_update_energy_bar()
+
+
+func _is_next_to_wall() -> bool:
+	if is_on_wall():
+		return true
+
+	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	var check_distance: float = body_half_width + 3.0
+	var left_hit: Dictionary = _raycast(space_state, global_position, global_position + Vector2(-check_distance, 0.0))
+	if not left_hit.is_empty():
+		return true
+	var right_hit: Dictionary = _raycast(space_state, global_position, global_position + Vector2(check_distance, 0.0))
+	return not right_hit.is_empty()
+
+
+func _drain_energy(amount: float) -> void:
+	current_energy = maxf(current_energy - amount, 0.0)
+	recharge_timer = normal_recharge_delay
+	if current_energy <= 0.0:
+		is_exhausted = true
+		recharge_timer = exhausted_recharge_delay
+
+
+func _recharge_energy(delta: float) -> void:
+	if require_floor_to_recharge and not is_on_floor():
+		return
+
+	if recharge_timer > 0.0:
+		recharge_timer = maxf(recharge_timer - delta, 0.0)
+		return
+
+	if current_energy < max_energy:
+		current_energy = minf(current_energy + energy_recharge_rate * delta, max_energy)
+		if is_exhausted and current_energy >= max_energy:
+			is_exhausted = false
+
+
+func _setup_energy_bar() -> void:
+	if energy_bar == null:
+		for child in find_children("*", "ProgressBar", true, false):
+			energy_bar = child as ProgressBar
+			break
+
+	if energy_bar == null:
+		energy_bar = ProgressBar.new()
+		energy_bar.show_percentage = false
+		energy_bar.size = Vector2(32.0, 6.0)
+		energy_bar.position = Vector2(-16.0, -body_half_height - 14.0)
+		add_child(energy_bar)
+
+	energy_bar.min_value = 0.0
+	energy_bar.max_value = max_energy
+	energy_bar.step = 0.0
+	energy_bar.value = current_energy
+
+
+func _update_energy_bar() -> void:
+	if energy_bar == null:
+		return
+
+	energy_bar.max_value = max_energy
+	energy_bar.value = current_energy
+	energy_bar.modulate = Color(1.0, 0.3, 0.3) if is_exhausted else Color(0.3, 1.0, 0.4)
+
+
+func _try_grab_ledge(direction: int) -> bool:
+	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	var side_offset := Vector2(direction * (body_half_width + ledge_probe_distance), 0.0)
+	var wall_origin := global_position + Vector2(0.0, -body_half_height * 0.2)
+	var wall_hit: Dictionary = _raycast(space_state, wall_origin, wall_origin + side_offset)
+
+	if wall_hit.is_empty():
+		return false
+
+	var clear_origin := global_position + Vector2(0.0, -body_half_height + 2.0)
+	var clear_hit: Dictionary = _raycast(space_state, clear_origin, clear_origin + side_offset)
+	if not clear_hit.is_empty():
+		return false
+
+	var ledge_x: float = wall_hit["position"].x
+	var probe_x: float = global_position.x + direction * (body_half_width + ledge_probe_distance)
+	var top_from := Vector2(probe_x, global_position.y - body_half_height - max_ledge_reach)
+	var top_to := Vector2(probe_x, global_position.y + body_half_height + ledge_probe_distance)
+	var top_hit: Dictionary = _raycast(space_state, top_from, top_to)
+
+	if top_hit.is_empty():
+		return false
+	if top_hit["normal"].y > -0.5:
+		return false
+
+	var top_y: float = top_hit["position"].y
+	if top_y < global_position.y - body_half_height - max_ledge_reach:
+		return false
+	if top_y > global_position.y + body_half_height:
+		return false
+
+	hang_direction = direction
+	ledge_position = Vector2(ledge_x, top_y)
+	hang_position = Vector2(
+		ledge_x - direction * (body_half_width + 2.0),
+		top_y + body_half_height * 0.6
 	)
-	global_position = hang_position # Snap the player to the calculated hanging position.
-	velocity = Vector2.ZERO # Stop all movement while the player is hanging.
-	is_hanging = true # Mark the player as hanging so normal movement pauses.
-	return true # Tell the physics function that a ledge grab succeeded.
+	global_position = hang_position
+	velocity = Vector2.ZERO
+	is_hanging = true
+	return true
 
 
-func _handle_hanging(jump_pressed: bool) -> void: # Handles controls while the player is hanging from a ledge.
-	velocity = Vector2.ZERO # Keep the player stationary while attached.
-	global_position = hang_position # Correct any drift and keep the player at the grab point.
+func _handle_hanging(jump_pressed: bool) -> void:
+	velocity = Vector2.ZERO
+	global_position = hang_position
 
-	if Input.is_action_just_pressed("ui_up"): # If up is pressed while hanging...
-		global_position = Vector2( # ...move the player onto the platform above.
-			ledge_position.x + hang_direction * (body_half_width + 2.0), # Place the player on the platform side of the ledge.
-			ledge_position.y - body_half_height # Place the player's feet level with the top surface.
+	if Input.is_action_just_pressed("ui_up"):
+		_drain_energy(space_energy_cost)
+		global_position = Vector2(
+			ledge_position.x + hang_direction * (body_half_width + 2.0),
+			ledge_position.y - body_half_height
 		)
-		is_hanging = false # Resume normal movement after climbing up.
-	elif jump_pressed: # If jump is pressed instead...
-		is_hanging = false # ...release the ledge.
-		velocity = Vector2(-hang_direction * wall_jump_push, jump_velocity * 0.7) # Push away and upward from the ledge.
-	elif Input.is_action_just_pressed("ui_down"): # If down is pressed instead...
-		is_hanging = false # ...release the ledge.
-		velocity.y = 80.0 # Start falling downward.
+		is_hanging = false
+	elif jump_pressed:
+		is_hanging = false
+		velocity = Vector2(-hang_direction * wall_jump_push, jump_velocity * 0.7)
+	elif Input.is_action_just_pressed("ui_down"):
+		is_hanging = false
+		velocity.y = 80.0
 
 
-func _raycast( # Helper function that sends a ray through the physics world.
-	space_state: PhysicsDirectSpaceState2D, # The physics-world query object used to run the ray.
-	from: Vector2, # The ray's starting point in global coordinates.
-	to: Vector2 # The ray's ending point in global coordinates.
-) -> Dictionary: # Returns hit information, or an empty dictionary if nothing was hit.
-	var query := PhysicsRayQueryParameters2D.create(from, to, collision_mask, [get_rid()]) # Build a ray query that uses this player's collision mask and ignores the player itself.
-	query.collide_with_areas = false # Only let the ray detect physics bodies, not Area2D nodes.
-	query.collide_with_bodies = true # Allow the ray to detect StaticBody2D and other physics bodies.
-	return space_state.intersect_ray(query) # Run the ray and return the collision result
+func _raycast(
+	space_state: PhysicsDirectSpaceState2D,
+	from: Vector2,
+	to: Vector2
+) -> Dictionary:
+	var query := PhysicsRayQueryParameters2D.create(from, to, collision_mask, [get_rid()])
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	return space_state.intersect_ray(query)
