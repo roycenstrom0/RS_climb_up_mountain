@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://txga386x2wln"]
+
+[ext_resource type="Script" uid="uid://c8sfr3p3g6n4w" path="res://climber.gd" id="1_to385"]
+[ext_resource type="Texture2D" uid="uid://4q335xxs2p" path="res://icon.svg" id="2_0500s"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_co1pt"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_0500s")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 5.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_4b7wr"]
+size = Vector2(138, 144)
+
+[node name="climber_player" type="CharacterBody2D" unique_id=98054088]
+script = ExtResource("1_to385")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1285693160]
+position = Vector2(127.5, 117.5)
+scale = Vector2(0.9296875, 1.0234375)
+sprite_frames = SubResource("SpriteFrames_co1pt")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1575795192]
+position = Vector2(127, 116)
+shape = SubResource("RectangleShape2D_4b7wr")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1263356030]

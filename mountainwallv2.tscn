@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://b8yttj3igq754"]
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_vn4a8"]
+a = Vector2(-96, 944)
+b = Vector2(-888, -384)
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_4b7wr"]
+a = Vector2(1952, 864)
+b = Vector2(616, -216)
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_5080w"]
+a = Vector2(616, -216)
+b = Vector2(-336, -224)
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_7v4h5"]
+a = Vector2(1960, 864)
+b = Vector2(440, 1080)
+
+[node name="v2mountain" type="StaticBody2D" unique_id=1840979447]
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=2006631420]
+position = Vector2(-8, 8)
+polygon = PackedVector2Array(448, 1080, -329.26947, -231.00996, 624, -227, 1966, 859)
+uv = PackedVector2Array(-40.885925, 71.57092, -236.09943, -132.5159, 142.79224, -147.60057)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1123451866]
+position = Vector2(552, 160)
+shape = SubResource("SegmentShape2D_vn4a8")
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="." unique_id=358988217]
+shape = SubResource("SegmentShape2D_4b7wr")
+
+[node name="CollisionShape2D3" type="CollisionShape2D" parent="." unique_id=1470078682]
+shape = SubResource("SegmentShape2D_5080w")
+
+[node name="CollisionShape2D4" type="CollisionShape2D" parent="." unique_id=1589747771]
+shape = SubResource("SegmentShape2D_7v4h5")
