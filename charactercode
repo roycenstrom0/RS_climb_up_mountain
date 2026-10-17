@@ -13,14 +13,29 @@ extends CharacterBody2D
 
 # Energy settings
 @export var max_energy: float = 200.0
-@export var space_energy_cost: float = 10.0 # Energy lost each time the Spacebar is pressed.
-@export var climb_energy_drain: float = 15.0 # Energy lost per second while climbing with Up/Down.
-@export var hang_energy_drain: float = 15.0 # Energy lost per second while hanging on a ledge.
-@export var energy_recharge_rate: float = 40.0 # Energy restored per second when recovering.
-@export var normal_recharge_delay: float = 0.6 # Delay before recharging after using energy.
-@export var exhausted_recharge_delay: float = 1.5 # Wait time before recharging after hitting 0 energy.
-@export var require_floor_to_recharge: bool = false # Set true if you only want to recharge on the ground.
+@export var space_energy_cost: float = 10.0
+@export var climb_energy_drain: float = 15.0
+@export var hang_energy_drain: float = 15.0
+@export var energy_recharge_rate: float = 40.0
+@export var normal_recharge_delay: float = 0.6
+@export var exhausted_recharge_delay: float = 1.5
+@export var require_floor_to_recharge: bool = false
 @export var energy_bar: ProgressBar
+@export var energy_bar_size: Vector2 = Vector2(260.0, 32.0)
+@export var energy_bar_margin: Vector2 = Vector2(24.0, 24.0)
+
+# Fall-damage settings
+@export var minimum_damaging_fall_speed: float = 650.0
+@export var fall_energy_damage: float = 35.0
+
+# If false, damaged energy stays unavailable until the player/scene resets.
+@export var fall_damage_can_recover: bool = true
+@export var fall_damage_recovery_delay: float = 2.5
+@export var fall_damage_recovery_rate: float = 4.0
+
+var damaged_energy: float = 0.0
+var peak_fall_speed: float = 0.0
+var fall_damage_recovery_timer: float = 0.0
 
 var is_hanging: bool = false
 var ledge_position: Vector2 = Vector2.ZERO
@@ -39,34 +54,51 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var was_on_floor: bool = is_on_floor()
 	var move_input: float = Input.get_axis("ui_left", "ui_right")
 	var vertical_input: float = Input.get_axis("ui_up", "ui_down")
 	var jump_pressed: bool = Input.is_action_just_pressed("ui_accept")
+
+	_recover_fall_damage(delta)
+
 	var can_use_energy: bool = not is_exhausted and current_energy > 0.0
 	var is_using_energy: bool = false
 
-	# Drain energy whenever the Spacebar (ui_accept) is hit and the player has energy.
+	# Drain energy whenever the Spacebar is pressed.
 	if jump_pressed and can_use_energy:
 		is_using_energy = true
 		_drain_energy(space_energy_cost)
 
 	if is_hanging:
+		peak_fall_speed = 0.0
+
 		if hang_energy_drain > 0.0:
 			is_using_energy = true
 			_drain_energy(hang_energy_drain * delta)
+
 		if is_exhausted:
 			is_hanging = false
 			velocity.y = 80.0
 		else:
 			_handle_hanging(jump_pressed)
+
 			if not is_using_energy:
 				_recharge_energy(delta)
+
 			_update_energy_bar()
 			return
 
 	var touching_wall: bool = _is_next_to_wall()
-	var wall_jumped: bool = can_use_energy and is_on_wall() and not is_on_floor() and jump_pressed
-	var wants_to_climb: bool = vertical_input < 0.0 or (vertical_input > 0.0 and not is_on_floor())
+	var wall_jumped: bool = (
+		can_use_energy
+		and is_on_wall()
+		and not is_on_floor()
+		and jump_pressed
+	)
+	var wants_to_climb: bool = (
+		vertical_input < 0.0
+		or (vertical_input > 0.0 and not is_on_floor())
+	)
 
 	if is_on_floor() and jump_pressed and can_use_energy:
 		velocity.y = jump_velocity
@@ -82,16 +114,41 @@ func _physics_process(delta: float) -> void:
 
 	if not wall_jumped:
 		if move_input != 0.0:
-			velocity.x = move_toward(velocity.x, move_input * speed, acceleration * delta)
+			velocity.x = move_toward(
+				velocity.x,
+				move_input * speed,
+				acceleration * delta
+			)
 		else:
-			velocity.x = move_toward(velocity.x, 0.0, friction * delta)
+			velocity.x = move_toward(
+				velocity.x,
+				0.0,
+				friction * delta
+			)
 
-	if can_use_energy and not is_on_floor() and velocity.y >= 0.0 and move_input != 0.0:
-		if _try_grab_ledge(signi(move_input)):
+	if (
+		can_use_energy
+		and not is_on_floor()
+		and velocity.y >= 0.0
+		and move_input != 0.0
+	):
+		var ledge_direction: int = 1 if move_input > 0.0 else -1
+		if _try_grab_ledge(ledge_direction):
 			_update_energy_bar()
 			return
 
+	# Remember the player's fastest downward speed before landing.
+	if not was_on_floor and velocity.y > 0.0:
+		peak_fall_speed = maxf(peak_fall_speed, velocity.y)
+
 	move_and_slide()
+
+	# Apply fall damage when the player touches the floor.
+	if not was_on_floor and is_on_floor():
+		_apply_fall_damage(peak_fall_speed)
+		peak_fall_speed = 0.0
+	elif is_on_floor():
+		peak_fall_speed = 0.0
 
 	if not is_using_energy:
 		_recharge_energy(delta)
@@ -105,16 +162,26 @@ func _is_next_to_wall() -> bool:
 
 	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
 	var check_distance: float = body_half_width + 3.0
-	var left_hit: Dictionary = _raycast(space_state, global_position, global_position + Vector2(-check_distance, 0.0))
+	var left_hit: Dictionary = _raycast(
+		space_state,
+		global_position,
+		global_position + Vector2(-check_distance, 0.0)
+	)
 	if not left_hit.is_empty():
 		return true
-	var right_hit: Dictionary = _raycast(space_state, global_position, global_position + Vector2(check_distance, 0.0))
+
+	var right_hit: Dictionary = _raycast(
+		space_state,
+		global_position,
+		global_position + Vector2(check_distance, 0.0)
+	)
 	return not right_hit.is_empty()
 
 
 func _drain_energy(amount: float) -> void:
 	current_energy = maxf(current_energy - amount, 0.0)
 	recharge_timer = normal_recharge_delay
+
 	if current_energy <= 0.0:
 		is_exhausted = true
 		recharge_timer = exhausted_recharge_delay
@@ -128,29 +195,118 @@ func _recharge_energy(delta: float) -> void:
 		recharge_timer = maxf(recharge_timer - delta, 0.0)
 		return
 
-	if current_energy < max_energy:
-		current_energy = minf(current_energy + energy_recharge_rate * delta, max_energy)
-		if is_exhausted and current_energy >= max_energy:
-			is_exhausted = false
+	var usable_energy: float = _get_usable_max_energy()
+
+	if current_energy < usable_energy:
+		current_energy = minf(
+			current_energy + energy_recharge_rate * delta,
+			usable_energy
+		)
+
+	if (
+		is_exhausted
+		and usable_energy > 0.0
+		and current_energy >= usable_energy
+	):
+		is_exhausted = false
+
+
+func _get_usable_max_energy() -> float:
+	return maxf(max_energy - damaged_energy, 0.0)
+
+
+func _apply_fall_damage(impact_speed: float) -> void:
+	if impact_speed < minimum_damaging_fall_speed:
+		return
+
+	if fall_energy_damage <= 0.0:
+		return
+
+	var actual_damage: float = minf(
+		fall_energy_damage,
+		max_energy - damaged_energy
+	)
+
+	if actual_damage <= 0.0:
+		return
+
+	damaged_energy += actual_damage
+	current_energy = maxf(current_energy - actual_damage, 0.0)
+	current_energy = minf(current_energy, _get_usable_max_energy())
+
+	fall_damage_recovery_timer = fall_damage_recovery_delay
+	recharge_timer = maxf(recharge_timer, normal_recharge_delay)
+
+	if current_energy <= 0.0:
+		is_exhausted = true
+		recharge_timer = maxf(
+			recharge_timer,
+			exhausted_recharge_delay
+		)
+
+
+func _recover_fall_damage(delta: float) -> void:
+	if not fall_damage_can_recover:
+		return
+
+	if damaged_energy <= 0.0:
+		return
+
+	if fall_damage_recovery_timer > 0.0:
+		fall_damage_recovery_timer = maxf(
+			fall_damage_recovery_timer - delta,
+			0.0
+		)
+		return
+
+	var recovered_amount: float = minf(
+		fall_damage_recovery_rate * delta,
+		damaged_energy
+	)
+
+	damaged_energy -= recovered_amount
+
+	# Slowly restore the recovered section of the bar.
+	current_energy = minf(
+		current_energy + recovered_amount,
+		_get_usable_max_energy()
+	)
 
 
 func _setup_energy_bar() -> void:
+	# Find an existing ProgressBar if one was not assigned in the Inspector.
 	if energy_bar == null:
 		for child in find_children("*", "ProgressBar", true, false):
 			energy_bar = child as ProgressBar
 			break
 
+	# CanvasLayer keeps the bar fixed to the viewport instead of the world.
+	var hud_layer := CanvasLayer.new()
+	hud_layer.name = "EnergyHUD"
+	hud_layer.layer = 100
+	add_child(hud_layer)
+
 	if energy_bar == null:
 		energy_bar = ProgressBar.new()
-		energy_bar.show_percentage = false
-		energy_bar.size = Vector2(32.0, 6.0)
-		energy_bar.position = Vector2(-16.0, -body_half_height - 14.0)
-		add_child(energy_bar)
+		hud_layer.add_child(energy_bar)
+	else:
+		energy_bar.reparent(hud_layer)
 
 	energy_bar.min_value = 0.0
 	energy_bar.max_value = max_energy
 	energy_bar.step = 0.0
 	energy_bar.value = current_energy
+	energy_bar.show_percentage = true
+	energy_bar.custom_minimum_size = energy_bar_size
+	energy_bar.add_theme_font_size_override("font_size", 18)
+	energy_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Anchor the bar to the viewport's bottom-left corner.
+	energy_bar.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	energy_bar.offset_left = energy_bar_margin.x
+	energy_bar.offset_top = -energy_bar_margin.y - energy_bar_size.y
+	energy_bar.offset_right = energy_bar_margin.x + energy_bar_size.x
+	energy_bar.offset_bottom = -energy_bar_margin.y
 
 
 func _update_energy_bar() -> void:
@@ -158,28 +314,60 @@ func _update_energy_bar() -> void:
 		return
 
 	energy_bar.max_value = max_energy
-	energy_bar.value = current_energy
-	energy_bar.modulate = Color(1.0, 0.3, 0.3) if is_exhausted else Color(0.3, 1.0, 0.4)
+	energy_bar.value = clampf(current_energy, 0.0, max_energy)
+
+	if is_exhausted:
+		energy_bar.modulate = Color(1.0, 0.3, 0.3)
+	elif damaged_energy > 0.0:
+		energy_bar.modulate = Color(1.0, 0.65, 0.2)
+	else:
+		energy_bar.modulate = Color(0.3, 1.0, 0.4)
 
 
 func _try_grab_ledge(direction: int) -> bool:
 	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
-	var side_offset := Vector2(direction * (body_half_width + ledge_probe_distance), 0.0)
-	var wall_origin := global_position + Vector2(0.0, -body_half_height * 0.2)
-	var wall_hit: Dictionary = _raycast(space_state, wall_origin, wall_origin + side_offset)
+	var side_offset := Vector2(
+		direction * (body_half_width + ledge_probe_distance),
+		0.0
+	)
+	var wall_origin := global_position + Vector2(
+		0.0,
+		-body_half_height * 0.2
+	)
+	var wall_hit: Dictionary = _raycast(
+		space_state,
+		wall_origin,
+		wall_origin + side_offset
+	)
 
 	if wall_hit.is_empty():
 		return false
 
-	var clear_origin := global_position + Vector2(0.0, -body_half_height + 2.0)
-	var clear_hit: Dictionary = _raycast(space_state, clear_origin, clear_origin + side_offset)
+	var clear_origin := global_position + Vector2(
+		0.0,
+		-body_half_height + 2.0
+	)
+	var clear_hit: Dictionary = _raycast(
+		space_state,
+		clear_origin,
+		clear_origin + side_offset
+	)
 	if not clear_hit.is_empty():
 		return false
 
 	var ledge_x: float = wall_hit["position"].x
-	var probe_x: float = global_position.x + direction * (body_half_width + ledge_probe_distance)
-	var top_from := Vector2(probe_x, global_position.y - body_half_height - max_ledge_reach)
-	var top_to := Vector2(probe_x, global_position.y + body_half_height + ledge_probe_distance)
+	var probe_x: float = (
+		global_position.x
+		+ direction * (body_half_width + ledge_probe_distance)
+	)
+	var top_from := Vector2(
+		probe_x,
+		global_position.y - body_half_height - max_ledge_reach
+	)
+	var top_to := Vector2(
+		probe_x,
+		global_position.y + body_half_height + ledge_probe_distance
+	)
 	var top_hit: Dictionary = _raycast(space_state, top_from, top_to)
 
 	if top_hit.is_empty():
@@ -202,6 +390,7 @@ func _try_grab_ledge(direction: int) -> bool:
 	global_position = hang_position
 	velocity = Vector2.ZERO
 	is_hanging = true
+	peak_fall_speed = 0.0
 	return true
 
 
@@ -218,7 +407,10 @@ func _handle_hanging(jump_pressed: bool) -> void:
 		is_hanging = false
 	elif jump_pressed:
 		is_hanging = false
-		velocity = Vector2(-hang_direction * wall_jump_push, jump_velocity * 0.7)
+		velocity = Vector2(
+			-hang_direction * wall_jump_push,
+			jump_velocity * 0.7
+		)
 	elif Input.is_action_just_pressed("ui_down"):
 		is_hanging = false
 		velocity.y = 80.0
@@ -229,7 +421,13 @@ func _raycast(
 	from: Vector2,
 	to: Vector2
 ) -> Dictionary:
-	var query := PhysicsRayQueryParameters2D.create(from, to, collision_mask, [get_rid()])
+	var query := PhysicsRayQueryParameters2D.create(
+		from,
+		to,
+		collision_mask,
+		[get_rid()]
+	)
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
 	return space_state.intersect_ray(query)
+
