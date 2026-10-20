@@ -31,8 +31,8 @@ extends CharacterBody2D
 
 # If false, damaged energy stays unavailable until the player/scene resets.
 @export var fall_damage_can_recover: bool = true
-@export var fall_damage_recovery_delay: float = 2.5
-@export var fall_damage_recovery_rate: float = 4.0
+@export var fall_damage_recovery_delay: float = 3.5
+@export var fall_damage_recovery_rate: float = 2.0
 
 # Small rocks that fall from the wall while climbing.
 @export_group("Climbing Rock Particles")
