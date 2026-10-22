@@ -6,7 +6,12 @@ extends Area2D
 @export var player_group: StringName = &"player"
 @export var player_death_area_group: StringName = &"player_death_area"
 
+# Fog movement settings.
+@export var move_up_distance: float = 50.0
+@export var move_interval: float = 3.5
+
 var is_restarting: bool = false
+var move_timer: Timer
 
 
 func _ready() -> void:
@@ -17,6 +22,18 @@ func _ready() -> void:
 
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
+
+	# Create a repeating timer that moves the fog upward.
+	move_timer = Timer.new()
+	move_timer.wait_time = move_interval
+	move_timer.one_shot = false
+	move_timer.timeout.connect(_on_move_timer_timeout)
+	add_child(move_timer)
+	move_timer.start()
+
+
+func _on_move_timer_timeout() -> void:
+	position.y -= move_up_distance
 
 
 # Detects the player's normal CharacterBody2D collision.

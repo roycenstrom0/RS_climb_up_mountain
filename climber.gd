@@ -25,6 +25,13 @@ extends CharacterBody2D
 @export var energy_bar_size: Vector2 = Vector2(260.0, 32.0)
 @export var energy_bar_margin: Vector2 = Vector2(24.0, 24.0)
 
+# Poison settings
+@export_group("Poison")
+@export var poison_no_recharge_time: float = 6.0
+@export var poison_recharge_rate: float = 0.5
+@export var poison_bar_color: Color = Color(0.65, 0.2, 1.0)
+@export_group("")
+
 # Fall-damage settings
 @export var minimum_damaging_fall_speed: float = 650.0
 @export var fall_energy_damage: float = 50.0
@@ -65,6 +72,9 @@ var current_energy: float = 100.0
 var is_exhausted: bool = false
 var recharge_timer: float = 0.0
 
+var is_poisoned: bool = false
+var poison_timer: float = 0.0
+
 
 func _ready() -> void:
 	add_to_group("player")
@@ -81,6 +91,7 @@ func _physics_process(delta: float) -> void:
 	var vertical_input: float = Input.get_axis("ui_up", "ui_down")
 	var jump_pressed: bool = Input.is_action_just_pressed("ui_accept")
 
+	_update_poison(delta)
 	_recover_fall_damage(delta)
 
 	var can_use_energy: bool = not is_exhausted and current_energy > 0.0
@@ -217,6 +228,28 @@ func _is_next_to_wall() -> bool:
 	return false
 
 
+# Called by a poison bush when the player enters its Area2D.
+func apply_poison() -> void:
+	is_poisoned = true
+	poison_timer = maxf(poison_no_recharge_time, 0.0)
+	_update_energy_bar()
+
+
+func _update_poison(delta: float) -> void:
+	if not is_poisoned:
+		return
+
+	poison_timer = maxf(poison_timer - delta, 0.0)
+
+	# After the no-recharge period, poison remains until the slower
+	# regeneration has refilled the usable portion of the energy bar.
+	if (
+		poison_timer <= 0.0
+		and current_energy >= _get_usable_max_energy()
+	):
+		is_poisoned = false
+
+
 func _drain_energy(amount: float) -> void:
 	current_energy = maxf(current_energy - amount, 0.0)
 	recharge_timer = normal_recharge_delay
@@ -234,16 +267,30 @@ func _recharge_energy(delta: float) -> void:
 		recharge_timer = maxf(recharge_timer - delta, 0.0)
 		return
 
+	# Poison completely blocks regeneration for the first 8 seconds.
+	if is_poisoned and poison_timer > 0.0:
+		return
+
 	var usable_energy: float = _get_usable_max_energy()
-	var active_recharge_rate: float = (
-		exhausted_recharge_rate if is_exhausted else energy_recharge_rate
-	)
+	var active_recharge_rate: float
+
+	# Poisoned regeneration takes priority over normal/exhausted rates.
+	if is_poisoned:
+		active_recharge_rate = poison_recharge_rate
+	elif is_exhausted:
+		active_recharge_rate = exhausted_recharge_rate
+	else:
+		active_recharge_rate = energy_recharge_rate
 
 	if current_energy < usable_energy:
 		current_energy = minf(
 			current_energy + active_recharge_rate * delta,
 			usable_energy
 		)
+
+	# End the poison after the usable energy bar has refilled.
+	if is_poisoned and current_energy >= usable_energy:
+		is_poisoned = false
 
 	if (
 		is_exhausted
@@ -288,6 +335,10 @@ func _apply_fall_damage(impact_speed: float) -> void:
 
 
 func _recover_fall_damage(delta: float) -> void:
+	# The initial poison pause also stops fall-damage recovery.
+	if is_poisoned and poison_timer > 0.0:
+		return
+
 	if not fall_damage_can_recover:
 		return
 
@@ -358,7 +409,9 @@ func _update_energy_bar() -> void:
 	energy_bar.max_value = max_energy
 	energy_bar.value = clampf(current_energy, 0.0, max_energy)
 
-	if is_exhausted:
+	if is_poisoned:
+		energy_bar.modulate = poison_bar_color
+	elif is_exhausted:
 		energy_bar.modulate = Color(1.0, 0.3, 0.3)
 	elif damaged_energy > 0.0:
 		energy_bar.modulate = Color(1.0, 0.65, 0.2)

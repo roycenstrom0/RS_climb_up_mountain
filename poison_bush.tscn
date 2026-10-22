@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://bxq5yx28tbbbw"]
+
+[ext_resource type="Script" uid="uid://d0mkovw5lhh3o" path="res://poison_bush.gd" id="1_ort3e"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_uw6ub"]
+radius = 31.0
+height = 64.0
+
+[node name="poison_bush" type="Area2D" unique_id=1390078506]
+script = ExtResource("1_ort3e")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=189625124]
+position = Vector2(46, 91)
+shape = SubResource("CapsuleShape2D_uw6ub")
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=1368030819]
+position = Vector2(166, 105)
+polygon = PackedVector2Array(-127.84215, 14.827099, -109.82101, 14.8394375, -109.55806, -0.4116335, -89.5739, 0.37721443, -110.609856, -12.507309, -90.88865, -13.296158, -110.609856, -25.391838, -92.2034, -25.917736, -123.75734, -40.37996, -149.51407, -25.123003, -129.01631, -25.128887, -148.6644, -11.952925, -135.91916, -12.377767, -126.123886, -12.770262, -148.34605, -0.7606616, -128.08197, -0.28103828)
+uv = PackedVector2Array(-120.000336, 54.66667, -94.000336, 54, -93.33368, 15.333336, -57.33368, 16, -96.000336, -15.333328, -55.33368, -16, -96.000336, -48, -49.33368, -49.333332, -129.33368, -86, -184.00034, -57.333332, -142.66699, -47.333332, -184.00034, -24, -184.00034, -24, -135.33368, -16, -176.66699, 7.333336, -127.33368, 7.333336)

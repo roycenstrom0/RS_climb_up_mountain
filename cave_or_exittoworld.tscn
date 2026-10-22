@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://v7eoneor24wg"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_uw6ub"]
+radius = 53.0
+height = 106.0
+
+[node name="cave_or_exittoworld" type="Area2D" unique_id=1445704855]
+position = Vector2(513, 247)
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=266492868]
+position = Vector2(80, 9)
+polygon = PackedVector2Array(-138.00034, 45.333344, -138.66699, -28, -131.33368, -48.666664, -120.000336, -61.333332, -107.33368, -73.33333, -90.000336, -79.33333, -70.66699, -80.666664, -49.33368, -76.666664, -36.666992, -65.33333, -25.33368, -52.666664, -18.666992, -36.666664, -17.33368, 36, -20.000336, 44)
+uv = PackedVector2Array(-138.00034, 45.333344, -138.66699, -28, -131.33368, -48.666664, -120.000336, -61.333332, -107.33368, -73.33333, -90.000336, -79.33333, -70.66699, -80.666664, -49.33368, -76.666664, -36.666992, -65.33333, -25.33368, -52.666664, -18.666992, -36.666664, -17.33368, 36, -17.33368, 36)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=166841115]
+position = Vector2(3, -5)
+shape = SubResource("CapsuleShape2D_uw6ub")

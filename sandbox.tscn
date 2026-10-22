@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://qqm65v7jidnj" path="res://mountainwall.tscn" id="5_rjrbw"]
 [ext_resource type="PackedScene" uid="uid://b8yttj3igq754" path="res://mountainwallv2.tscn" id="5_ypj6x"]
 [ext_resource type="PackedScene" uid="uid://b7sbvt6eglumf" path="res://fog.tscn" id="6_ypj6x"]
+[ext_resource type="PackedScene" uid="uid://bxq5yx28tbbbw" path="res://poison_bush.tscn" id="7_0fpt2"]
 
 [node name="torial" type="Node2D" unique_id=213354541]
 position = Vector2(326, 176)
@@ -55,3 +56,24 @@ position = Vector2(19, 734)
 
 [node name="mist_or_gas3" parent="." unique_id=1390820559 instance=ExtResource("6_ypj6x")]
 position = Vector2(1311, 752)
+
+[node name="mist_or_gas4" parent="." unique_id=47478728 instance=ExtResource("6_ypj6x")]
+position = Vector2(-1204, 715)
+
+[node name="mist_or_gas5" parent="." unique_id=1743944765 instance=ExtResource("6_ypj6x")]
+position = Vector2(-599, 730)
+
+[node name="mist_or_gas6" parent="." unique_id=931734096 instance=ExtResource("6_ypj6x")]
+position = Vector2(1954, 794)
+
+[node name="mist_or_gas7" parent="." unique_id=521190118 instance=ExtResource("6_ypj6x")]
+position = Vector2(2565, 829)
+
+[node name="poison_bush" parent="." unique_id=1390078506 instance=ExtResource("7_0fpt2")]
+position = Vector2(1215, 139)
+
+[node name="poison_bush2" parent="." unique_id=1805849337 instance=ExtResource("7_0fpt2")]
+position = Vector2(-208, -2287)
+
+[node name="poison_bush3" parent="." unique_id=1798629734 instance=ExtResource("7_0fpt2")]
+position = Vector2(665, -399)
