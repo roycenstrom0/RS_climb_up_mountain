@@ -3,13 +3,13 @@
 [ext_resource type="Script" uid="uid://dhnli02vem8f4" path="res://plateform.gd" id="1_cpk6p"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_4b7wr"]
-size = Vector2(359.5, 53)
+size = Vector2(338.75, 53)
 
 [node name="plateform" type="StaticBody2D" unique_id=1639055123]
 script = ExtResource("1_cpk6p")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=599888855]
-position = Vector2(138, 3)
+position = Vector2(148.375, 3)
 shape = SubResource("RectangleShape2D_4b7wr")
 
 [node name="Polygon2D" type="Polygon2D" parent="." unique_id=755775958]

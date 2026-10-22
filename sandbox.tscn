@@ -5,40 +5,53 @@
 [ext_resource type="PackedScene" uid="uid://txga386x2wln" path="res://monkey.tscn" id="2_p7lbm"]
 [ext_resource type="PackedScene" uid="uid://qqm65v7jidnj" path="res://mountainwall.tscn" id="5_rjrbw"]
 [ext_resource type="PackedScene" uid="uid://b8yttj3igq754" path="res://mountainwallv2.tscn" id="5_ypj6x"]
+[ext_resource type="PackedScene" uid="uid://b7sbvt6eglumf" path="res://fog.tscn" id="6_ypj6x"]
 
 [node name="torial" type="Node2D" unique_id=213354541]
 position = Vector2(326, 176)
 script = ExtResource("1_rvmsc")
 
 [node name="climber_player" parent="." unique_id=98054088 groups=["death"] instance=ExtResource("2_p7lbm")]
-position = Vector2(-913, -123)
+position = Vector2(40, -97)
 
 [node name="plateform2m" parent="." unique_id=1639055123 instance=ExtResource("1_cojph")]
 position = Vector2(978, 279)
 
 [node name="plateform2m2" parent="." unique_id=1623221357 instance=ExtResource("1_cojph")]
-position = Vector2(554, 230)
+position = Vector2(467, 387)
 
 [node name="plateform" parent="." unique_id=1976617560 instance=ExtResource("1_cojph")]
 position = Vector2(-500, -2645)
 
 [node name="plateform2m3" parent="." unique_id=2091319251 instance=ExtResource("1_cojph")]
-position = Vector2(-969, 118)
+position = Vector2(-34, 214)
 
 [node name="plateform2m4" parent="." unique_id=1212088225 instance=ExtResource("1_cojph")]
-position = Vector2(38, 107)
+position = Vector2(597, -260)
 
 [node name="plateform2m5" parent="." unique_id=952907070 instance=ExtResource("1_cojph")]
-position = Vector2(-454, 281)
+position = Vector2(385, -864)
 
 [node name="plateform2" parent="." unique_id=1052572616 instance=ExtResource("1_cojph")]
-position = Vector2(-1032, -2796)
+position = Vector2(175, -1511)
+
+[node name="plateform3" parent="." unique_id=1154198035 instance=ExtResource("1_cojph")]
+position = Vector2(-191, -2149)
 
 [node name="mountainwall2" parent="." unique_id=981475707 instance=ExtResource("5_rjrbw")]
-position = Vector2(496, -1230)
+position = Vector2(1230, -1300)
 
 [node name="mountainwall" parent="." unique_id=1579055845 instance=ExtResource("5_rjrbw")]
-position = Vector2(845, -281)
+position = Vector2(1597, -333)
 
 [node name="mountainwallv2" parent="." unique_id=1840979447 instance=ExtResource("5_ypj6x")]
-position = Vector2(238, -2703)
+position = Vector2(256, -2738)
+
+[node name="mist_or_gas" parent="." unique_id=361258055 instance=ExtResource("6_ypj6x")]
+position = Vector2(664, 734)
+
+[node name="mist_or_gas2" parent="." unique_id=1760957376 instance=ExtResource("6_ypj6x")]
+position = Vector2(19, 734)
+
+[node name="mist_or_gas3" parent="." unique_id=1390820559 instance=ExtResource("6_ypj6x")]
+position = Vector2(1311, 752)

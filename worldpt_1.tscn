@@ -8,7 +8,7 @@
 [node name="worldpt1" type="Node2D" unique_id=2037389333]
 
 [node name="climber_player" parent="." unique_id=98054088 instance=ExtResource("1_jqfd6")]
-position = Vector2(342, 52)
+position = Vector2(362, 86)
 
 [node name="plateform" parent="." unique_id=1639055123 instance=ExtResource("2_clibv")]
 position = Vector2(585, -689)
@@ -29,31 +29,31 @@ position = Vector2(316, 336)
 position = Vector2(82, -4783)
 
 [node name="plateform8" parent="." unique_id=1843348453 instance=ExtResource("2_clibv")]
-position = Vector2(926, -1594)
+position = Vector2(464, -1528)
 
 [node name="plateform9" parent="." unique_id=1148075520 instance=ExtResource("2_clibv")]
-position = Vector2(1309, -3489)
+position = Vector2(1487, -3426)
 
 [node name="plateform10" parent="." unique_id=1810317048 instance=ExtResource("2_clibv")]
-position = Vector2(690, -4658)
+position = Vector2(584, -4669)
 
 [node name="plateform11" parent="." unique_id=1666825501 instance=ExtResource("2_clibv")]
 position = Vector2(-3213, -5805)
 
 [node name="mountainwall" parent="." unique_id=1579055845 instance=ExtResource("3_3jpig")]
-position = Vector2(-326, -1485)
+position = Vector2(111, -1288)
 
 [node name="mountainwall2" parent="." unique_id=337189174 instance=ExtResource("3_3jpig")]
-position = Vector2(1366, -341)
+position = Vector2(2142, -490)
 
 [node name="mountainwall4" parent="." unique_id=320486824 instance=ExtResource("3_3jpig")]
-position = Vector2(1629, -3088)
+position = Vector2(1516, -3016)
 
 [node name="v2mountainwall" parent="." unique_id=1840979447 instance=ExtResource("4_clibv")]
-position = Vector2(1417, -4727)
+position = Vector2(1402, -4627)
 
 [node name="v2mountainwall2" parent="." unique_id=2078767632 instance=ExtResource("4_clibv")]
 position = Vector2(-2191, -5549)
 
 [node name="v2mountain" parent="." unique_id=202055447 instance=ExtResource("4_clibv")]
-position = Vector2(1422, -2200)
+position = Vector2(929, -1985)

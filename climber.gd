@@ -1,0 +1,616 @@
+extends CharacterBody2D
+
+@export var body_half_width: float = 8.0
+@export var body_half_height: float = 16.0
+@export var speed: float = 300.0
+@export var acceleration: float = 1800.0
+@export var friction: float = 2200.0
+@export var climb_speed: float = 150.0
+@export var jump_velocity: float = -400.0
+@export var wall_jump_push: float = 180.0
+@export var max_ledge_reach: float = 40.0
+@export var ledge_probe_distance: float = 10.0
+
+# Energy settings
+@export var max_energy: float = 200.0
+@export var space_energy_cost: float = 10.0
+@export var climb_energy_drain: float = 15.0
+@export var hang_energy_drain: float = 15.0
+@export var energy_recharge_rate: float = 40.0
+@export var exhausted_recharge_rate: float = 9.0
+@export var normal_recharge_delay: float = 0.6
+@export var exhausted_recharge_delay: float = 5.0
+@export var require_floor_to_recharge: bool = false
+@export var energy_bar: ProgressBar
+@export var energy_bar_size: Vector2 = Vector2(260.0, 32.0)
+@export var energy_bar_margin: Vector2 = Vector2(24.0, 24.0)
+
+# Fall-damage settings
+@export var minimum_damaging_fall_speed: float = 650.0
+@export var fall_energy_damage: float = 50.0
+
+# If false, damaged energy stays unavailable until the player/scene resets.
+@export var fall_damage_can_recover: bool = true
+@export var fall_damage_recovery_delay: float = 3.5
+@export var fall_damage_recovery_rate: float = 2.0
+
+# Small rocks that fall from the wall while climbing.
+@export_group("Climbing Rock Particles")
+@export var climb_rock_particles: CPUParticles2D
+@export var climb_rock_texture: Texture2D
+@export_range(1, 30, 1) var climb_rock_min_amount: int = 3
+@export_range(1, 30, 1) var climb_rock_max_amount: int = 8
+@export var keep_emitting_rocks_while_climbing: bool = true
+@export var climb_rock_interval_min: float = 0.25
+@export var climb_rock_interval_max: float = 0.75
+@export_range(0.0, 1.0, 0.05) var climb_rock_burst_chance: float = 0.75
+@export var climb_rock_tint: Color = Color.WHITE
+@export_group("")
+
+var damaged_energy: float = 0.0
+var peak_fall_speed: float = 0.0
+var fall_damage_recovery_timer: float = 0.0
+
+var was_climbing_wall: bool = false
+var climb_rock_timer: float = 0.0
+var climb_wall_side: int = 0
+var particle_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+var is_hanging: bool = false
+var ledge_position: Vector2 = Vector2.ZERO
+var hang_position: Vector2 = Vector2.ZERO
+var hang_direction: int = 1
+
+var current_energy: float = 100.0
+var is_exhausted: bool = false
+var recharge_timer: float = 0.0
+
+
+func _ready() -> void:
+	add_to_group("player")
+	current_energy = max_energy
+	particle_rng.randomize()
+	_setup_energy_bar()
+	_setup_climb_rock_particles()
+	_update_energy_bar()
+
+
+func _physics_process(delta: float) -> void:
+	var was_on_floor: bool = is_on_floor()
+	var move_input: float = Input.get_axis("ui_left", "ui_right")
+	var vertical_input: float = Input.get_axis("ui_up", "ui_down")
+	var jump_pressed: bool = Input.is_action_just_pressed("ui_accept")
+
+	_recover_fall_damage(delta)
+
+	var can_use_energy: bool = not is_exhausted and current_energy > 0.0
+	var is_using_energy: bool = false
+	var is_climbing_this_frame: bool = false
+
+	# Drain energy whenever the Spacebar is pressed.
+	if jump_pressed and can_use_energy:
+		is_using_energy = true
+		_drain_energy(space_energy_cost)
+
+	if is_hanging:
+		peak_fall_speed = 0.0
+
+		if hang_energy_drain > 0.0:
+			is_using_energy = true
+			_drain_energy(hang_energy_drain * delta)
+
+		if is_exhausted:
+			is_hanging = false
+			velocity.y = 80.0
+		else:
+			_handle_hanging(jump_pressed)
+
+			if not is_using_energy:
+				_recharge_energy(delta)
+
+			_update_climb_rock_particles(false, delta)
+			_update_energy_bar()
+			return
+
+	var touching_wall: bool = _is_next_to_wall()
+	var wall_jumped: bool = (
+		can_use_energy
+		and is_on_wall()
+		and not is_on_floor()
+		and jump_pressed
+	)
+	var wants_to_climb: bool = (
+		vertical_input < 0.0
+		or (vertical_input > 0.0 and not is_on_floor())
+	)
+
+	if is_on_floor() and jump_pressed and can_use_energy:
+		velocity.y = jump_velocity
+	elif wall_jumped:
+		velocity.y = jump_velocity
+		velocity.x = get_wall_normal().x * wall_jump_push
+	elif can_use_energy and touching_wall and wants_to_climb:
+		velocity.y = vertical_input * climb_speed
+		is_using_energy = true
+		is_climbing_this_frame = true
+		_drain_energy(climb_energy_drain * delta)
+	elif not is_on_floor():
+		velocity += get_gravity() * delta
+
+	if not wall_jumped:
+		if move_input != 0.0:
+			velocity.x = move_toward(
+				velocity.x,
+				move_input * speed,
+				acceleration * delta
+			)
+		else:
+			velocity.x = move_toward(
+				velocity.x,
+				0.0,
+				friction * delta
+			)
+
+	if (
+		can_use_energy
+		and not is_on_floor()
+		and velocity.y >= 0.0
+		and move_input != 0.0
+	):
+		var ledge_direction: int = 1 if move_input > 0.0 else -1
+		if _try_grab_ledge(ledge_direction):
+			_update_climb_rock_particles(false, delta)
+			_update_energy_bar()
+			return
+
+	# Remember the player's fastest downward speed before landing.
+	if not was_on_floor and velocity.y > 0.0:
+		peak_fall_speed = maxf(peak_fall_speed, velocity.y)
+
+	move_and_slide()
+
+	# Apply fall damage when the player touches the floor.
+	if not was_on_floor and is_on_floor():
+		_apply_fall_damage(peak_fall_speed)
+		peak_fall_speed = 0.0
+	elif is_on_floor():
+		peak_fall_speed = 0.0
+
+	_update_climb_rock_particles(is_climbing_this_frame, delta)
+
+	if not is_using_energy:
+		_recharge_energy(delta)
+
+	_update_energy_bar()
+
+
+func _is_next_to_wall() -> bool:
+	climb_wall_side = 0
+
+	if is_on_wall():
+		var wall_normal: Vector2 = get_wall_normal()
+		if absf(wall_normal.x) > 0.1:
+			# A left-facing normal means the wall is on the player's right.
+			climb_wall_side = 1 if wall_normal.x < 0.0 else -1
+		return true
+
+	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	var check_distance: float = body_half_width + 3.0
+	var left_hit: Dictionary = _raycast(
+		space_state,
+		global_position,
+		global_position + Vector2(-check_distance, 0.0)
+	)
+	if not left_hit.is_empty():
+		climb_wall_side = -1
+		return true
+
+	var right_hit: Dictionary = _raycast(
+		space_state,
+		global_position,
+		global_position + Vector2(check_distance, 0.0)
+	)
+	if not right_hit.is_empty():
+		climb_wall_side = 1
+		return true
+
+	return false
+
+
+func _drain_energy(amount: float) -> void:
+	current_energy = maxf(current_energy - amount, 0.0)
+	recharge_timer = normal_recharge_delay
+
+	if current_energy <= 0.0:
+		is_exhausted = true
+		recharge_timer = exhausted_recharge_delay
+
+
+func _recharge_energy(delta: float) -> void:
+	if require_floor_to_recharge and not is_on_floor():
+		return
+
+	if recharge_timer > 0.0:
+		recharge_timer = maxf(recharge_timer - delta, 0.0)
+		return
+
+	var usable_energy: float = _get_usable_max_energy()
+	var active_recharge_rate: float = (
+		exhausted_recharge_rate if is_exhausted else energy_recharge_rate
+	)
+
+	if current_energy < usable_energy:
+		current_energy = minf(
+			current_energy + active_recharge_rate * delta,
+			usable_energy
+		)
+
+	if (
+		is_exhausted
+		and usable_energy > 0.0
+		and current_energy >= usable_energy
+	):
+		is_exhausted = false
+
+
+func _get_usable_max_energy() -> float:
+	return maxf(max_energy - damaged_energy, 0.0)
+
+
+func _apply_fall_damage(impact_speed: float) -> void:
+	if impact_speed < minimum_damaging_fall_speed:
+		return
+
+	if fall_energy_damage <= 0.0:
+		return
+
+	var actual_damage: float = minf(
+		fall_energy_damage,
+		max_energy - damaged_energy
+	)
+
+	if actual_damage <= 0.0:
+		return
+
+	damaged_energy += actual_damage
+	current_energy = maxf(current_energy - actual_damage, 0.0)
+	current_energy = minf(current_energy, _get_usable_max_energy())
+
+	fall_damage_recovery_timer = fall_damage_recovery_delay
+	recharge_timer = maxf(recharge_timer, normal_recharge_delay)
+
+	if current_energy <= 0.0:
+		is_exhausted = true
+		recharge_timer = maxf(
+			recharge_timer,
+			exhausted_recharge_delay
+		)
+
+
+func _recover_fall_damage(delta: float) -> void:
+	if not fall_damage_can_recover:
+		return
+
+	if damaged_energy <= 0.0:
+		return
+
+	if fall_damage_recovery_timer > 0.0:
+		fall_damage_recovery_timer = maxf(
+			fall_damage_recovery_timer - delta,
+			0.0
+		)
+		return
+
+	var recovered_amount: float = minf(
+		fall_damage_recovery_rate * delta,
+		damaged_energy
+	)
+
+	damaged_energy -= recovered_amount
+
+	# Slowly restore the recovered section of the bar.
+	current_energy = minf(
+		current_energy + recovered_amount,
+		_get_usable_max_energy()
+	)
+
+
+func _setup_energy_bar() -> void:
+	# Find an existing ProgressBar if one was not assigned in the Inspector.
+	if energy_bar == null:
+		for child in find_children("*", "ProgressBar", true, false):
+			energy_bar = child as ProgressBar
+			break
+
+	# CanvasLayer keeps the bar fixed to the viewport instead of the world.
+	var hud_layer := CanvasLayer.new()
+	hud_layer.name = "EnergyHUD"
+	hud_layer.layer = 100
+	add_child(hud_layer)
+
+	if energy_bar == null:
+		energy_bar = ProgressBar.new()
+		hud_layer.add_child(energy_bar)
+	else:
+		energy_bar.reparent(hud_layer)
+
+	energy_bar.min_value = 0.0
+	energy_bar.max_value = max_energy
+	energy_bar.step = 0.0
+	energy_bar.value = current_energy
+	energy_bar.show_percentage = true
+	energy_bar.custom_minimum_size = energy_bar_size
+	energy_bar.add_theme_font_size_override("font_size", 18)
+	energy_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Anchor the bar to the viewport's bottom-left corner.
+	energy_bar.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	energy_bar.offset_left = energy_bar_margin.x
+	energy_bar.offset_top = -energy_bar_margin.y - energy_bar_size.y
+	energy_bar.offset_right = energy_bar_margin.x + energy_bar_size.x
+	energy_bar.offset_bottom = -energy_bar_margin.y
+
+
+func _update_energy_bar() -> void:
+	if energy_bar == null:
+		return
+
+	energy_bar.max_value = max_energy
+	energy_bar.value = clampf(current_energy, 0.0, max_energy)
+
+	if is_exhausted:
+		energy_bar.modulate = Color(1.0, 0.3, 0.3)
+	elif damaged_energy > 0.0:
+		energy_bar.modulate = Color(1.0, 0.65, 0.2)
+	else:
+		energy_bar.modulate = Color(0.3, 1.0, 0.4)
+
+
+func _setup_climb_rock_particles() -> void:
+	# You can assign your own CPUParticles2D in the Inspector. If you do not,
+	# this creates and configures one automatically.
+	if climb_rock_particles == null:
+		climb_rock_particles = get_node_or_null("ClimbRockParticles") as CPUParticles2D
+
+	if climb_rock_particles == null:
+		climb_rock_particles = CPUParticles2D.new()
+		climb_rock_particles.name = "ClimbRockParticles"
+		add_child(climb_rock_particles)
+
+	climb_rock_particles.emitting = false
+	climb_rock_particles.one_shot = true
+	climb_rock_particles.explosiveness = 1.0
+	climb_rock_particles.randomness = 0.35
+	climb_rock_particles.lifetime = 0.7
+	climb_rock_particles.local_coords = false
+	climb_rock_particles.direction = Vector2.DOWN
+	climb_rock_particles.spread = 28.0
+	climb_rock_particles.gravity = Vector2(0.0, 700.0)
+	climb_rock_particles.initial_velocity_min = 25.0
+	climb_rock_particles.initial_velocity_max = 80.0
+	climb_rock_particles.angle_min = 0.0
+	climb_rock_particles.angle_max = 360.0
+	climb_rock_particles.angular_velocity_min = -220.0
+	climb_rock_particles.angular_velocity_max = 220.0
+	climb_rock_particles.scale_amount_min = 0.7
+	climb_rock_particles.scale_amount_max = 1.3
+	climb_rock_particles.color = climb_rock_tint
+	climb_rock_particles.z_index = 1
+	climb_rock_particles.amount = maxi(1, climb_rock_min_amount)
+
+	if climb_rock_texture != null:
+		climb_rock_particles.texture = climb_rock_texture
+	elif climb_rock_particles.texture == null:
+		climb_rock_particles.texture = _create_default_rock_texture()
+
+
+func _create_default_rock_texture() -> Texture2D:
+	# Make a tiny brown rock so the effect works without an imported texture.
+	var image: Image = Image.create(7, 6, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+
+	var row_starts: Array[int] = [2, 1, 0, 0, 1, 2]
+	var row_ends: Array[int] = [4, 5, 6, 6, 5, 4]
+	var dark: Color = Color(0.22, 0.13, 0.07, 1.0)
+	var middle: Color = Color(0.45, 0.29, 0.16, 1.0)
+	var light: Color = Color(0.62, 0.43, 0.24, 1.0)
+
+	for y in range(row_starts.size()):
+		for x in range(row_starts[y], row_ends[y] + 1):
+			var is_edge: bool = (
+				x == row_starts[y]
+				or x == row_ends[y]
+				or y == 0
+				or y == row_starts.size() - 1
+			)
+			var pixel_color: Color = dark if is_edge else middle
+			if not is_edge and (x + y) % 3 == 0:
+				pixel_color = light
+			image.set_pixel(x, y, pixel_color)
+
+	return ImageTexture.create_from_image(image)
+
+
+func _update_climb_rock_particles(climbing: bool, delta: float) -> void:
+	if not climbing:
+		was_climbing_wall = false
+		climb_rock_timer = 0.0
+		return
+
+	# Always make one burst as soon as climbing begins.
+	if not was_climbing_wall:
+		was_climbing_wall = true
+		_emit_climb_rocks()
+		_reset_climb_rock_timer()
+		return
+
+	if not keep_emitting_rocks_while_climbing:
+		return
+
+	climb_rock_timer = maxf(climb_rock_timer - delta, 0.0)
+	if climb_rock_timer <= 0.0:
+		if particle_rng.randf() <= clampf(climb_rock_burst_chance, 0.0, 1.0):
+			_emit_climb_rocks()
+		_reset_climb_rock_timer()
+
+
+func _reset_climb_rock_timer() -> void:
+	var shortest_interval: float = maxf(
+		minf(climb_rock_interval_min, climb_rock_interval_max),
+		0.05
+	)
+	var longest_interval: float = maxf(
+		maxf(climb_rock_interval_min, climb_rock_interval_max),
+		shortest_interval
+	)
+	climb_rock_timer = particle_rng.randf_range(
+		shortest_interval,
+		longest_interval
+	)
+
+
+func _emit_climb_rocks() -> void:
+	if climb_rock_particles == null:
+		return
+
+	var minimum_amount: int = maxi(
+		1,
+		mini(climb_rock_min_amount, climb_rock_max_amount)
+	)
+	var maximum_amount: int = maxi(
+		minimum_amount,
+		maxi(climb_rock_min_amount, climb_rock_max_amount)
+	)
+
+	var wall_side: int = climb_wall_side
+	if wall_side == 0:
+		var wall_normal: Vector2 = get_wall_normal()
+		if absf(wall_normal.x) > 0.1:
+			wall_side = 1 if wall_normal.x < 0.0 else -1
+		elif velocity.x != 0.0:
+			wall_side = 1 if velocity.x > 0.0 else -1
+		else:
+			wall_side = hang_direction
+
+	# Put the emitter against the side of the wall, near the player's hands.
+	climb_rock_particles.position = Vector2(
+		wall_side * (body_half_width + 2.0),
+		-body_half_height * 0.35
+	)
+	climb_rock_particles.amount = particle_rng.randi_range(
+		minimum_amount,
+		maximum_amount
+	)
+
+	# Force a new one-shot burst even if the previous rocks are still falling.
+	climb_rock_particles.emitting = false
+	climb_rock_particles.restart()
+	climb_rock_particles.emitting = true
+
+
+func _try_grab_ledge(direction: int) -> bool:
+	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	var side_offset := Vector2(
+		direction * (body_half_width + ledge_probe_distance),
+		0.0
+	)
+	var wall_origin := global_position + Vector2(
+		0.0,
+		-body_half_height * 0.2
+	)
+	var wall_hit: Dictionary = _raycast(
+		space_state,
+		wall_origin,
+		wall_origin + side_offset
+	)
+
+	if wall_hit.is_empty():
+		return false
+
+	var clear_origin := global_position + Vector2(
+		0.0,
+		-body_half_height + 2.0
+	)
+	var clear_hit: Dictionary = _raycast(
+		space_state,
+		clear_origin,
+		clear_origin + side_offset
+	)
+	if not clear_hit.is_empty():
+		return false
+
+	var ledge_x: float = wall_hit["position"].x
+	var probe_x: float = (
+		global_position.x
+		+ direction * (body_half_width + ledge_probe_distance)
+	)
+	var top_from := Vector2(
+		probe_x,
+		global_position.y - body_half_height - max_ledge_reach
+	)
+	var top_to := Vector2(
+		probe_x,
+		global_position.y + body_half_height + ledge_probe_distance
+	)
+	var top_hit: Dictionary = _raycast(space_state, top_from, top_to)
+
+	if top_hit.is_empty():
+		return false
+	if top_hit["normal"].y > -0.5:
+		return false
+
+	var top_y: float = top_hit["position"].y
+	if top_y < global_position.y - body_half_height - max_ledge_reach:
+		return false
+	if top_y > global_position.y + body_half_height:
+		return false
+
+	hang_direction = direction
+	ledge_position = Vector2(ledge_x, top_y)
+	hang_position = Vector2(
+		ledge_x - direction * (body_half_width + 2.0),
+		top_y + body_half_height * 0.6
+	)
+	global_position = hang_position
+	velocity = Vector2.ZERO
+	is_hanging = true
+	peak_fall_speed = 0.0
+	return true
+
+
+func _handle_hanging(jump_pressed: bool) -> void:
+	velocity = Vector2.ZERO
+	global_position = hang_position
+
+	if Input.is_action_just_pressed("ui_up"):
+		_drain_energy(space_energy_cost)
+		global_position = Vector2(
+			ledge_position.x + hang_direction * (body_half_width + 2.0),
+			ledge_position.y - body_half_height
+		)
+		is_hanging = false
+	elif jump_pressed:
+		is_hanging = false
+		velocity = Vector2(
+			-hang_direction * wall_jump_push,
+			jump_velocity * 0.7
+		)
+	elif Input.is_action_just_pressed("ui_down"):
+		is_hanging = false
+		velocity.y = 80.0
+
+
+func _raycast(
+	space_state: PhysicsDirectSpaceState2D,
+	from: Vector2,
+	to: Vector2
+) -> Dictionary:
+	var query := PhysicsRayQueryParameters2D.create(
+		from,
+		to,
+		collision_mask,
+		[get_rid()]
+	)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	return space_state.intersect_ray(query)

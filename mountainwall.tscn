@@ -2,45 +2,49 @@
 
 [sub_resource type="SegmentShape2D" id="SegmentShape2D_7v4h5"]
 a = Vector2(-611.99994, -1362)
-b = Vector2(-230.99994, -401.99994)
+b = Vector2(-207.00006, -382)
 
 [sub_resource type="SegmentShape2D" id="SegmentShape2D_4b7wr"]
-a = Vector2(806, -228)
+a = Vector2(826, -232)
 b = Vector2(187, -403)
 
 [sub_resource type="SegmentShape2D" id="SegmentShape2D_vn4a8"]
-a = Vector2(1156, 216)
+a = Vector2(1177, 206)
 b = Vector2(806, -237)
 
 [sub_resource type="SegmentShape2D" id="SegmentShape2D_5080w"]
-a = Vector2(905, 583)
-b = Vector2(1170, 211)
+a = Vector2(909, 570)
+b = Vector2(1180, 179)
 
 [sub_resource type="SegmentShape2D" id="SegmentShape2D_wsrlg"]
-a = Vector2(887, 597)
-b = Vector2(578, 592)
+a = Vector2(976, 597)
+b = Vector2(627, 601)
 
 [node name="mountainwall" type="StaticBody2D" unique_id=1579055845]
 
 [node name="Polygon2D" type="Polygon2D" parent="." unique_id=61965740]
-position = Vector2(734, -31)
+position = Vector2(-1.999939, -4.000002)
 scale = Vector2(0.592592, 1.3849658)
 polygon = PackedVector2Array(-945.00085, -264.9885, 114.75012, -148.74011, 735.75073, 172.56744, 288.56274, 450.5526, -263.25018, 449.83057, -391.042, 322.2412)
 uv = PackedVector2Array(-224.00034, -30, 378.66632, -46, 377.333, 39.333344, -231.33368, 37.333344)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=575110586]
-position = Vector2(794.99994, 971.99994)
+position = Vector2(55.00006, 1003)
 scale = Vector2(0.99999994, 0.99999994)
 shape = SubResource("SegmentShape2D_7v4h5")
 
 [node name="CollisionShape2D2" type="CollisionShape2D" parent="." unique_id=1783895253]
+position = Vector2(-745, 31)
 shape = SubResource("SegmentShape2D_4b7wr")
 
 [node name="CollisionShape2D3" type="CollisionShape2D" parent="." unique_id=896061762]
+position = Vector2(-749, 22)
 shape = SubResource("SegmentShape2D_vn4a8")
 
 [node name="CollisionShape2D4" type="CollisionShape2D" parent="." unique_id=1021597254]
+position = Vector2(-749, 54)
 shape = SubResource("SegmentShape2D_5080w")
 
 [node name="CollisionShape2D5" type="CollisionShape2D" parent="." unique_id=488235012]
+position = Vector2(-789, 18)
 shape = SubResource("SegmentShape2D_wsrlg")

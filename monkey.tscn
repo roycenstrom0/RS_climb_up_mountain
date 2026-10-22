@@ -15,19 +15,30 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_4b7wr"]
-size = Vector2(138, 144)
+size = Vector2(123, 130)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_5080w"]
+size = Vector2(121, 130)
 
 [node name="climber_player" type="CharacterBody2D" unique_id=98054088]
+position = Vector2(-3, 0)
 script = ExtResource("1_to385")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1285693160]
-position = Vector2(127.5, 117.5)
+position = Vector2(20.000008, 23)
 scale = Vector2(0.9296875, 1.0234375)
 sprite_frames = SubResource("SpriteFrames_co1pt")
 animation = &"idle"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1575795192]
-position = Vector2(127, 116)
+position = Vector2(19.5, 24)
 shape = SubResource("RectangleShape2D_4b7wr")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=1263356030]
+position = Vector2(13, -85)
+
+[node name="deatharea" type="Area2D" parent="." unique_id=223718637]
+
+[node name="collissionshape2d" type="CollisionShape2D" parent="deatharea" unique_id=182739939]
+position = Vector2(18.5, 22)
+shape = SubResource("RectangleShape2D_5080w")
