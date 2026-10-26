@@ -1,11 +1,16 @@
 [gd_scene format=3 uid="uid://v7eoneor24wg"]
 
+[ext_resource type="Script" uid="uid://boawwda8q7boc" path="res://worldpt_1.tscn" id="1_ugrr7"]
+[ext_resource type="PackedScene" uid="uid://dqh7hutsflbrp" path="res://sandbox.tscn" id="2_ej60d"]
+
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_uw6ub"]
 radius = 53.0
 height = 106.0
 
 [node name="cave_or_exittoworld" type="Area2D" unique_id=1445704855]
 position = Vector2(513, 247)
+script = ExtResource("1_ugrr7")
+next_world = ExtResource("2_ej60d")
 
 [node name="Polygon2D" type="Polygon2D" parent="." unique_id=266492868]
 position = Vector2(80, 9)
