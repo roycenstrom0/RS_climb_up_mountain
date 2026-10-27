@@ -7,20 +7,19 @@
 [ext_resource type="PackedScene" uid="uid://b8yttj3igq754" path="res://mountainwallv2.tscn" id="5_ypj6x"]
 [ext_resource type="PackedScene" uid="uid://b7sbvt6eglumf" path="res://fog.tscn" id="6_ypj6x"]
 [ext_resource type="PackedScene" uid="uid://bxq5yx28tbbbw" path="res://poison_bush.tscn" id="7_0fpt2"]
-[ext_resource type="PackedScene" uid="uid://v7eoneor24wg" path="res://cave_or_exittoworld.tscn" id="8_0fpt2"]
 
 [node name="torial" type="Node2D" unique_id=213354541]
 position = Vector2(326, 176)
 script = ExtResource("1_rvmsc")
 
 [node name="climber_player" parent="." unique_id=98054088 groups=["death"] instance=ExtResource("2_p7lbm")]
-position = Vector2(-24, -2302)
+position = Vector2(99, 99)
 
 [node name="plateform2m" parent="." unique_id=1639055123 instance=ExtResource("1_cojph")]
-position = Vector2(978, 279)
+position = Vector2(1035, 283)
 
 [node name="plateform2m2" parent="." unique_id=1623221357 instance=ExtResource("1_cojph")]
-position = Vector2(467, 387)
+position = Vector2(474, 354)
 
 [node name="plateform" parent="." unique_id=1976617560 instance=ExtResource("1_cojph")]
 position = Vector2(-500, -2645)
@@ -71,13 +70,10 @@ position = Vector2(1954, 794)
 position = Vector2(2565, 829)
 
 [node name="poison_bush" parent="." unique_id=1390078506 instance=ExtResource("7_0fpt2")]
-position = Vector2(1215, 139)
+position = Vector2(1242, 143)
 
 [node name="poison_bush2" parent="." unique_id=1805849337 instance=ExtResource("7_0fpt2")]
 position = Vector2(-208, -2287)
 
 [node name="poison_bush3" parent="." unique_id=1798629734 instance=ExtResource("7_0fpt2")]
 position = Vector2(665, -399)
-
-[node name="cave_or_exittoworld" parent="." unique_id=1445704855 instance=ExtResource("8_0fpt2")]
-position = Vector2(-369, -2714)

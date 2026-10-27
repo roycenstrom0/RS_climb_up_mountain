@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://dj2w0rs5plpr5"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_4b7wr"]
+radius = 21.0
+height = 92.0
+
+[node name="poison_recovery" type="Node2D" unique_id=863926796]
+position = Vector2(337, 231)
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=2045470428]
+position = Vector2(24, 18)
+polygon = PackedVector2Array(-58.000336, -52, -57.33368, -0.6666641, -17.33368, 2, -14.666992, -48, -28.666992, -52, -25.33368, -75.33333, -47.33368, -76, -44.666992, -52)
+uv = PackedVector2Array(-58.000336, -52, -57.33368, -0.6666641, -17.33368, 2, -14.666992, -48, -33.33368, -50.666664, -33.33368, -76, -47.33368, -76, -47.33368, -57.333332)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1222665347]
+position = Vector2(-13, -18)
+shape = SubResource("CapsuleShape2D_4b7wr")

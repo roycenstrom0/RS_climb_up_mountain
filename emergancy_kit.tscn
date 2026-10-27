@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://fkpg8eeih48j"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_4b7wr"]
+size = Vector2(340, 148)
+
+[node name="emergancy_kit" type="Node2D" unique_id=1156249396]
+position = Vector2(553, 323)
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=1567216802]
+position = Vector2(188, -76)
+scale = Vector2(1.7631582, -3.0144)
+polygon = PackedVector2Array(-191.33368, -51.333332, -4.666992, -52, -3.3336792, -2, -193.33368, -3.3333282)
+uv = PackedVector2Array(-191.33368, -51.333332, -4.666992, -52, -3.3336792, -2, -193.33368, -3.3333282)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=560124201]
+position = Vector2(15, 5)
+shape = SubResource("RectangleShape2D_4b7wr")

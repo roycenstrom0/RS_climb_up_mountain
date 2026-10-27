@@ -4,8 +4,6 @@
 [ext_resource type="PackedScene" uid="uid://cdhkarwd0hnox" path="res://plateform.tscn" id="2_clibv"]
 [ext_resource type="PackedScene" uid="uid://qqm65v7jidnj" path="res://mountainwall.tscn" id="3_3jpig"]
 [ext_resource type="PackedScene" uid="uid://b8yttj3igq754" path="res://mountainwallv2.tscn" id="4_clibv"]
-[ext_resource type="PackedScene" uid="uid://v7eoneor24wg" path="res://cave_or_exittoworld.tscn" id="5_3jpig"]
-[ext_resource type="PackedScene" path="sandbox.tscn" id="6_xew8r"]
 
 [node name="worldpt1" type="Node2D" unique_id=2037389333]
 
@@ -59,7 +57,3 @@ position = Vector2(-2191, -5549)
 
 [node name="v2mountain" parent="." unique_id=202055447 instance=ExtResource("4_clibv")]
 position = Vector2(929, -1985)
-
-[node name="cave_or_exittoworld" parent="." unique_id=1445704855 instance=ExtResource("5_3jpig")]
-position = Vector2(-3134, -5876)
-next_world = ExtResource("6_xew8r")

@@ -1,5 +1,8 @@
 extends CharacterBody2D
 
+# Sent when a case (or another script) adds an item to the shared inventory.
+signal inventory_changed(item_name: String, new_total: int)
+
 @export var body_half_width: float = 8.0
 @export var body_half_height: float = 16.0
 @export var speed: float = 300.0
@@ -75,14 +78,66 @@ var recharge_timer: float = 0.0
 var is_poisoned: bool = false
 var poison_timer: float = 0.0
 
+# The autoload is the source of truth, so these counts survive world changes.
+# This dictionary is connected to CaseInventory.items in _ready().
+var inventory: Dictionary = {
+	"Emergency Kit": 0,
+	"Poison Recovery": 0,
+	"Adrenaline Shot": 0,
+}
+var _case_inventory: Node = null
+
 
 func _ready() -> void:
 	add_to_group("player")
+	_setup_case_inventory()
 	current_energy = max_energy
 	particle_rng.randomize()
 	_setup_energy_bar()
 	_setup_climb_rock_particles()
 	_update_energy_bar()
+
+
+# Connect the player to the inventory used by the loot case. The inventory
+# stays in the CaseInventory autoload when a portal changes the world scene.
+func _setup_case_inventory() -> void:
+	_case_inventory = get_node_or_null("/root/CaseInventory")
+	if _case_inventory == null:
+		push_warning("Character: Add case_inventory.gd as an Autoload named CaseInventory.")
+		return
+
+	if not _case_inventory.has_method("add_item") or not _case_inventory.has_signal("item_added"):
+		push_warning("Character: CaseInventory must use the supplied case_inventory.gd script.")
+		_case_inventory = null
+		return
+
+	var stored_items: Variant = _case_inventory.get("items")
+	if typeof(stored_items) != TYPE_DICTIONARY:
+		push_warning("Character: CaseInventory.items must be a Dictionary.")
+		_case_inventory = null
+		return
+
+	# Dictionaries are shared by reference: case rewards appear here too.
+	inventory = stored_items
+	if not _case_inventory.is_connected("item_added", _on_case_item_added):
+		_case_inventory.connect("item_added", _on_case_item_added)
+
+
+# Add an item through the player. The existing case can also add directly
+# to CaseInventory; either way, both use the same item counts.
+func add_item(item_name: String) -> void:
+	if not is_instance_valid(_case_inventory):
+		push_error("Character: CaseInventory is not available. Check Project Settings > Autoload.")
+		return
+	_case_inventory.call("add_item", item_name)
+
+
+func get_item_count(item_name: String) -> int:
+	return int(inventory.get(item_name, 0))
+
+
+func _on_case_item_added(item_name: String, new_total: int) -> void:
+	inventory_changed.emit(item_name, new_total)
 
 
 func _physics_process(delta: float) -> void:
