@@ -1,7 +1,9 @@
 extends CharacterBody2D
 
-# Sent when a case (or another script) adds an item to the shared inventory.
+# Sent when a case gives an item or the player uses an Emergency Kit.
 signal inventory_changed(item_name: String, new_total: int)
+
+const EMERGENCY_KIT_NAME: String = "Emergency Kit"
 
 @export var body_half_width: float = 8.0
 @export var body_half_height: float = 16.0
@@ -33,6 +35,13 @@ signal inventory_changed(item_name: String, new_total: int)
 @export var poison_no_recharge_time: float = 6.0
 @export var poison_recharge_rate: float = 0.5
 @export var poison_bar_color: Color = Color(0.65, 0.2, 1.0)
+@export_group("")
+
+# Emergency Kit: one kit repairs damaged energy and gives a temporary boost.
+@export_group("Emergency Kit")
+@export_range(0.1, 120.0, 0.1, "or_greater") var emergency_kit_duration: float = 10.0
+@export_range(1.0, 10.0, 0.1, "or_greater") var emergency_kit_recharge_multiplier: float = 2.0
+@export var emergency_kit_action: StringName = &"use_emergency_kit"
 @export_group("")
 
 # Fall-damage settings
@@ -86,6 +95,7 @@ var inventory: Dictionary = {
 	"Adrenaline Shot": 0,
 }
 var _case_inventory: Node = null
+var _emergency_kit_timer: Timer = null
 
 
 func _ready() -> void:
@@ -121,6 +131,74 @@ func _setup_case_inventory() -> void:
 	inventory = stored_items
 	if not _case_inventory.is_connected("item_added", _on_case_item_added):
 		_case_inventory.connect("item_added", _on_case_item_added)
+
+	_setup_emergency_kit_timer()
+
+
+# Keep the boost timer under the autoload, so it survives a world change.
+func _setup_emergency_kit_timer() -> void:
+	if not is_instance_valid(_case_inventory):
+		return
+
+	var existing_timer := _case_inventory.get_node_or_null("EmergencyKitBoostTimer")
+	if existing_timer != null:
+		_emergency_kit_timer = existing_timer as Timer
+		if _emergency_kit_timer == null:
+			push_error("Character: EmergencyKitBoostTimer must be a Timer node.")
+		else:
+			_emergency_kit_timer.one_shot = true
+		return
+
+	_emergency_kit_timer = Timer.new()
+	_emergency_kit_timer.name = "EmergencyKitBoostTimer"
+	_emergency_kit_timer.one_shot = true
+	_case_inventory.add_child(_emergency_kit_timer)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not InputMap.has_action(emergency_kit_action):
+		return
+	if event.is_action_pressed(emergency_kit_action):
+		if use_emergency_kit():
+			get_viewport().set_input_as_handled()
+
+
+# You can also call this function from an inventory button.
+func use_emergency_kit() -> bool:
+	if not is_instance_valid(_case_inventory):
+		push_error("Emergency Kit: CaseInventory Autoload is not available.")
+		return false
+
+	var count: int = get_item_count(EMERGENCY_KIT_NAME)
+	if count <= 0:
+		print("You don't have an Emergency Kit.")
+		return false
+
+	if not is_instance_valid(_emergency_kit_timer):
+		_setup_emergency_kit_timer()
+	if not is_instance_valid(_emergency_kit_timer):
+		push_error("Emergency Kit: Could not start the boost timer.")
+		return false
+
+	# This dictionary is shared with CaseInventory, so both see the new count.
+	inventory[EMERGENCY_KIT_NAME] = count - 1
+
+	# Repair the blocked part of the energy bar; energy refills over time.
+	damaged_energy = 0.0
+	fall_damage_recovery_timer = 0.0
+	recharge_timer = 0.0
+
+	# Using another kit extends the boost; it does not multiply the speed again.
+	var duration: float = maxf(emergency_kit_duration, 0.1)
+	_emergency_kit_timer.start(_emergency_kit_timer.time_left + duration)
+	_update_energy_bar()
+	print("Emergency Kit used. Kits left: %d" % (count - 1))
+	inventory_changed.emit(EMERGENCY_KIT_NAME, count - 1)
+	return true
+
+
+func _is_emergency_kit_active() -> bool:
+	return is_instance_valid(_emergency_kit_timer) and not _emergency_kit_timer.is_stopped()
 
 
 # Add an item through the player. The existing case can also add directly
@@ -320,7 +398,9 @@ func _recharge_energy(delta: float) -> void:
 
 	if recharge_timer > 0.0:
 		recharge_timer = maxf(recharge_timer - delta, 0.0)
-		return
+		# The kit skips the normal/exhaustion recharge delay while active.
+		if not _is_emergency_kit_active():
+			return
 
 	# Poison completely blocks regeneration for the first 8 seconds.
 	if is_poisoned and poison_timer > 0.0:
@@ -336,6 +416,13 @@ func _recharge_energy(delta: float) -> void:
 		active_recharge_rate = exhausted_recharge_rate
 	else:
 		active_recharge_rate = energy_recharge_rate
+
+	if _is_emergency_kit_active():
+		# While not poisoned, even exhaustion gets at least the normal rate.
+		# Poison's initial pause and slower rate still apply until cured.
+		if not is_poisoned:
+			active_recharge_rate = maxf(active_recharge_rate, energy_recharge_rate)
+		active_recharge_rate *= maxf(emergency_kit_recharge_multiplier, 1.0)
 
 	if current_energy < usable_energy:
 		current_energy = minf(
@@ -376,9 +463,12 @@ func _apply_fall_damage(impact_speed: float) -> void:
 
 	damaged_energy += actual_damage
 	current_energy = maxf(current_energy - actual_damage, 0.0)
+	if _is_emergency_kit_active():
+		# A fall still drains energy, but the kit repairs the blocked portion.
+		damaged_energy = 0.0
 	current_energy = minf(current_energy, _get_usable_max_energy())
 
-	fall_damage_recovery_timer = fall_damage_recovery_delay
+	fall_damage_recovery_timer = 0.0 if _is_emergency_kit_active() else fall_damage_recovery_delay
 	recharge_timer = maxf(recharge_timer, normal_recharge_delay)
 
 	if current_energy <= 0.0:

@@ -3,7 +3,7 @@ extends Area2D
 ## Assign the scene for the next world in the Inspector.
 ## NOTE: this value is stored per-instance in the scene that *owns* this node,
 ## so every portal placed in every world needs its own assignment.
-@export var next_world: PackedScene
+@export var next_world: PackedScene = "res://worldpt_1.tscn"
 @export var player_group: StringName = &"player"
 
 var is_changing_world: bool = false

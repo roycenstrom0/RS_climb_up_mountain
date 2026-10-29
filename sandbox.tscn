@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://b8yttj3igq754" path="res://mountainwallv2.tscn" id="5_ypj6x"]
 [ext_resource type="PackedScene" uid="uid://b7sbvt6eglumf" path="res://fog.tscn" id="6_ypj6x"]
 [ext_resource type="PackedScene" uid="uid://bxq5yx28tbbbw" path="res://poison_bush.tscn" id="7_0fpt2"]
+[ext_resource type="PackedScene" uid="uid://dfqbwllx0p8pc" path="res://case_or_something.tscn" id="8_0fpt2"]
 
 [node name="torial" type="Node2D" unique_id=213354541]
 position = Vector2(326, 176)
@@ -77,3 +78,6 @@ position = Vector2(-208, -2287)
 
 [node name="poison_bush3" parent="." unique_id=1798629734 instance=ExtResource("7_0fpt2")]
 position = Vector2(665, -399)
+
+[node name="case_or_something" parent="." unique_id=1333177460 instance=ExtResource("8_0fpt2")]
+position = Vector2(447, -900)
