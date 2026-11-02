@@ -14,7 +14,7 @@ position = Vector2(326, 176)
 script = ExtResource("1_rvmsc")
 
 [node name="climber_player" parent="." unique_id=98054088 groups=["death"] instance=ExtResource("2_p7lbm")]
-position = Vector2(99, 99)
+position = Vector2(585, -912)
 
 [node name="plateform2m" parent="." unique_id=1639055123 instance=ExtResource("1_cojph")]
 position = Vector2(1035, 283)
